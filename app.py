@@ -121,12 +121,24 @@ for _ in range(days):
         axis=1
     )
 
-# ---------------- FUTURE PLOT ----------------
 fig = plt.figure(figsize=(12, 5))
 plt.plot(future_predictions, marker="o")
+
+# ADD VALUE LABELS
+for i, value in enumerate(future_predictions):
+    plt.text(
+        i,
+        value,
+        f"{value:.2f}",
+        ha="center",
+        va="bottom",
+        fontsize=9
+    )
+
 plt.xlabel("Days")
 plt.ylabel("Predicted Close Price")
 plt.title(f"{stock} – Next {days} Days Prediction")
 st.pyplot(fig)
+
 
 st.success("✅ Prediction completed successfully!")
