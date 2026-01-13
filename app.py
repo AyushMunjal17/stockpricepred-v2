@@ -4,48 +4,34 @@ import numpy as np
 from keras.models import load_model
 import matplotlib.pyplot as plt
 import yfinance as yf
+import time
 
 st.title("Stock Price Predictor App")
 
 from datetime import datetime, timedelta
-end = datetime.now()
-default_span = timedelta(days=365 * 10)
-start = end - default_span
+DEFAULT_HISTORY_YEARS = 10
+
 stock = "GOOG"
 stock = st.text_input("Enter the stock here", stock)
 
-def get_stock_history(ticker: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-    attempts = [
-        ("download", {"start": start_date, "end": end_date}),
-        ("download", {"period": "10y"}),
-        ("download", {"period": "5y"}),
-        ("download", {"period": "max"}),
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_stock_history(ticker: str, years: int) -> pd.DataFrame:
+    time.sleep(1)
+    try:
+        data = yf.download(
+            ticker,
+            period=f"{years}y",
+            interval="1d",
+            auto_adjust=False,
+            progress=False,
+            threads=False,
+        )
+        return data
+    except Exception:
+        return pd.DataFrame()
 
-        ("history", {"period": "10y"}),
-        ("history", {"period": "5y"}),
-        ("history", {"period": "max"}),
-    ]
-    ticker_obj = yf.Ticker(ticker)
-    for method, params in attempts:
-        try:
-            if method == "download":
-                data = yf.download(
-                    ticker,
-                    progress=False,
-                    auto_adjust=True,
-                    threads=False,
-                    **params,
-                )
-            else:
-                data = ticker_obj.history(auto_adjust=True, **params)
+stock_data = load_stock_history(stock, DEFAULT_HISTORY_YEARS)
 
-        except Exception:
-            continue
-        if not data.empty:
-            return data
-    return pd.DataFrame()
-
-stock_data = get_stock_history(stock, start, end)
 if stock_data.empty:
     st.error("Yahoo Finance returned no rows for this ticker/time range. Try another symbol.")
     st.stop()
