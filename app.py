@@ -20,6 +20,7 @@ def get_stock_history(ticker: str, start_date: datetime, end_date: datetime) -> 
         ("download", {"period": "10y"}),
         ("download", {"period": "5y"}),
         ("download", {"period": "max"}),
+
         ("history", {"period": "10y"}),
         ("history", {"period": "5y"}),
         ("history", {"period": "max"}),
@@ -28,9 +29,16 @@ def get_stock_history(ticker: str, start_date: datetime, end_date: datetime) -> 
     for method, params in attempts:
         try:
             if method == "download":
-                data = yf.download(ticker, progress=False, **params)
+                data = yf.download(
+                    ticker,
+                    progress=False,
+                    auto_adjust=True,
+                    threads=False,
+                    **params,
+                )
             else:
-                data = ticker_obj.history(**params)
+                data = ticker_obj.history(auto_adjust=True, **params)
+
         except Exception:
             continue
         if not data.empty:
