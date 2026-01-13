@@ -13,37 +13,55 @@ st.set_page_config(page_title="Stock Price Predictor", layout="wide")
 st.title("📈 Stock Price Predictor App")
 
 # ---------------- USER INPUT ----------------
-stock = st.text_input("Enter the stock symbol (e.g., GOOG, AAPL, MSFT):", "GOOG").upper()
+stock = st.text_input(
+    "Enter stock symbol (GOOGL recommended for Google):",
+    "GOOG"
+).upper()
 
-# ---------------- SAFE DATA LOADER ----------------
+# ---------------- SAFE DATA LOADER WITH FALLBACK ----------------
 @st.cache_data(ttl=3600)
 def load_stock_data(symbol):
     """
-    Streamlit-safe Yahoo Finance downloader
+    Yahoo Finance loader with automatic GOOG -> GOOGL fallback
+    Works reliably on Streamlit Cloud
     """
     time.sleep(1)  # prevent rate limiting
-    try:
-        data = yf.download(
-            symbol,
-            period="10y",       # DO NOT use start/end on cloud
-            interval="1d",
-            progress=False,
-            threads=False
-        )
-        return data
-    except Exception:
-        return pd.DataFrame()
+
+    symbols_to_try = [symbol]
+
+    # Auto fallback for Google
+    if symbol == "GOOG":
+        symbols_to_try.append("GOOGL")
+
+    for sym in symbols_to_try:
+        try:
+            data = yf.download(
+                sym,
+                period="10y",
+                interval="1d",
+                progress=False,
+                threads=False
+            )
+            if not data.empty:
+                return data, sym
+        except Exception:
+            continue
+
+    return pd.DataFrame(), None
 
 # ---------------- LOAD DATA ----------------
-stock_data = load_stock_data(stock)
+stock_data, used_symbol = load_stock_data(stock)
 
 if stock_data.empty:
     st.error(
-        "❌ Yahoo Finance blocked this request on Streamlit Cloud.\n\n"
-        "✔ Try again after some time\n"
-        "✔ Or try another symbol (AAPL, MSFT, TSLA)"
+        "❌ Yahoo Finance blocked this ticker on Streamlit Cloud.\n\n"
+        "✔ Try AAPL, MSFT, TSLA\n"
+        "✔ Or use GOOGL instead of GOOG"
     )
     st.stop()
+
+if used_symbol != stock:
+    st.info(f"ℹ️ Data loaded using alternate ticker: **{used_symbol}**")
 
 # Ensure Close column exists
 if "Close" not in stock_data.columns:
@@ -93,7 +111,7 @@ plt.plot(predictions, label="Predicted Price", color="red")
 plt.legend()
 plt.xlabel("Days")
 plt.ylabel("Close Price")
-plt.title(f"{stock} Price Prediction")
+plt.title(f"{used_symbol} Price Prediction")
 st.pyplot(fig)
 
 # ---------------- FUTURE PREDICTION ----------------
@@ -114,17 +132,19 @@ current_input = last_100_scaled
 
 for _ in range(days):
     next_price = model.predict(current_input)
-    future_predictions.append(scaler.inverse_transform(next_price)[0][0])
+    future_predictions.append(
+        scaler.inverse_transform(next_price)[0][0]
+    )
     current_input = np.append(
         current_input[:, 1:, :],
         next_price.reshape(1, 1, 1),
         axis=1
     )
 
+# ---------------- FUTURE PLOT WITH VALUES ----------------
 fig = plt.figure(figsize=(12, 5))
 plt.plot(future_predictions, marker="o")
 
-# ADD VALUE LABELS
 for i, value in enumerate(future_predictions):
     plt.text(
         i,
@@ -137,8 +157,7 @@ for i, value in enumerate(future_predictions):
 
 plt.xlabel("Days")
 plt.ylabel("Predicted Close Price")
-plt.title(f"{stock} – Next {days} Days Prediction")
+plt.title(f"{used_symbol} – Next {days} Days Prediction")
 st.pyplot(fig)
-
 
 st.success("✅ Prediction completed successfully!")
